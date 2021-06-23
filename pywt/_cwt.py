@@ -34,7 +34,9 @@ except ImportError:
             return 2**ceil(np.log2(n))
 
 
-def cwt(data, scales, wavelet, sampling_period=1., method='conv', axis=-1):
+def cwt(
+        data, scales, wavelet, sampling_period=1.,
+        method='conv', axis=-1, precision=10):
     """
     cwt(data, scales, wavelet)
 
@@ -122,7 +124,6 @@ def cwt(data, scales, wavelet, sampling_period=1., method='conv', axis=-1):
 
     dt_out = dt_cplx if wavelet.complex_cwt else dt
     out = np.empty((np.size(scales),) + data.shape, dtype=dt_out)
-    precision = 10
     int_psi, x = integrate_wavelet(wavelet, precision=precision)
     int_psi = np.conj(int_psi) if wavelet.complex_cwt else int_psi
 
