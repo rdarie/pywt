@@ -7,7 +7,7 @@ from ._functions import integrate_wavelet, scale2frequency
 
 __all__ = ["cwt"]
 
-
+from tqdm import tqdm
 import numpy as np
 
 try:
@@ -33,10 +33,20 @@ except ImportError:
             """
             return 2**ceil(np.log2(n))
 
+try:
+    import cupy as cp
 
+
+    def convolve_fun(a, v, mode='full'):
+        out = cp.convolve(cp.asarray(a), cp.asarray(v), mode=mode)
+        return cp.asnumpy(out)
+
+
+except ImportError:
+    convolve_fun = np.convolve
 def cwt(
         data, scales, wavelet, sampling_period=1.,
-        method='conv', axis=-1, precision=10):
+        method='conv', axis=-1, precision=10, copy=True, progressbar=False):
     """
     cwt(data, scales, wavelet)
 
@@ -113,7 +123,8 @@ def cwt(
 
     # accept array_like input; make a copy to ensure a contiguous array
     dt = _check_dtype(data)
-    data = np.asarray(data, dtype=dt)
+    if copy:
+        data = np.asarray(data, dtype=dt)
     dt_cplx = np.result_type(dt, np.complex64)
     if not isinstance(wavelet, (ContinuousWavelet, Wavelet)):
         wavelet = DiscreteContinuousWavelet(wavelet)
@@ -157,15 +168,16 @@ def cwt(
 
         if method == 'conv':
             if data.ndim == 1:
-                conv = np.convolve(data, int_psi_scale)
+                conv = convolve_fun(data, int_psi_scale)
             else:
                 # batch convolution via loop
                 conv_shape = list(data.shape)
                 conv_shape[-1] += int_psi_scale.size - 1
                 conv_shape = tuple(conv_shape)
                 conv = np.empty(conv_shape, dtype=dt_out)
-                for n in range(data.shape[0]):
-                    conv[n, :] = np.convolve(data[n], int_psi_scale)
+                data_iterator = tqdm(range(data.shape[0])) if progressbar else range(data.shape[0])
+                for n in data_iterator:
+                    conv[n, :] = convolve_fun(data[n], int_psi_scale)
         else:
             # The padding is selected for:
             # - optimal FFT complexity
